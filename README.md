@@ -2,6 +2,9 @@
 
 **Version 2.1 · Shelf: Parsec Nodes v2.1**
 
+Licencia: MIT, ver [LICENSE](LICENSE). Incluye un aviso sobre las licencias de Houdini:
+la herramienta no convierte derechos de licencia de SideFX.
+
 Los botones principales ahora transportan una descripcion JSON de nodos, parametros y
 conexiones. El destino crea nodos con la API de Houdini: no importa redes nativas,
 HDAs ni bloques CPIO del origen. Para las curvas numericas usa segmentos ACHN de texto

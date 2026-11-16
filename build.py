@@ -75,7 +75,7 @@ import zlib
 bootstrap = "import base64,zlib; exec(compile(zlib.decompress(base64.b64decode(%r)), '<Parsec Nodes installer>', 'exec'))" % base64.b64encode(zlib.compress(installer.encode(), 9)).decode()
 (root / 'INSTALAR_EN_WINDOWS.txt').write_text(bootstrap + '\n', encoding='utf-8')
 import hashlib
-PACKAGE = ['install_parsec_nodes.py', 'parsec_nodes.py', 'parsec_nodes.shelf', 'README.md', 'INSTALAR_EN_WINDOWS.txt']
+PACKAGE = ['install_parsec_nodes.py', 'parsec_nodes.py', 'parsec_nodes.shelf', 'README.md', 'INSTALAR_EN_WINDOWS.txt', 'LICENSE']
 ZIP = 'Houdini_node_copypaster-v2.1.zip'
 with zipfile.ZipFile(root / ZIP, 'w', zipfile.ZIP_DEFLATED) as archive:
     for name in PACKAGE:
