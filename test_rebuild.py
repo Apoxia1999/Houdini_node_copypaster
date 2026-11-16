@@ -266,6 +266,23 @@ try:
         except ValueError: pass
         else: raise AssertionError('Malformed payload accepted: %r' % (bad,))
         assert set(target.allItems()) == before
+    # TASK 10 - enum and flag names from the payload are allowlisted, never passed to getattr.
+    numeric = {'name': 'tx', 'locked': False, 'keyframes': [crafted_key('bezier()')], 'extrapolation': ['Hold', 'Hold']}
+    bogus = {
+        'exprLanguage': record('xform', [dict(numeric, keyframes=[crafted_key('bezier()', '__class__')])]),
+        'parmExtrapolate': record('xform', [dict(numeric, extrapolation=['__class__', 'Hold'])]),
+        'rampBasis': record('xform', [{'name': 'tx', 'locked': False, 'ramp': {'basis': ['__doc__'], 'keys': [0.0], 'values': [0.0]}}]),
+        'flags': record('xform', flags={'__class__': True}),
+    }
+    bogus['flags value'] = record('xform', flags={'isBypassed': 'yes'})
+    for kind, crafted in bogus.items():
+        before = set(target.allItems())
+        ui.text, ui.shown, ui.answer = craft([record('box'), crafted]), [], 1
+        try: bridge.paste_rebuild()
+        except ValueError as error: assert str(error) == 'Valor no valido para %s.' % kind.split()[0], (kind, error)
+        else: raise AssertionError('Bogus %s accepted' % kind)
+        assert set(target.allItems()) == before and ui.shown == [], kind
+    print('PASS: bogus enum and flag names are rejected with a validation message and create nothing')
     # Standard SOPs with numeric keyframes paste without any dialog.
     ui.text, ui.shown, ui.answer = animation_text, [], None
     assert len(bridge.paste_rebuild()) == 1 and ui.shown == []

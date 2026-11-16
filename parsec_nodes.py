@@ -184,7 +184,7 @@ def _restore_key(record):
     if 'expression' in record:
         if _unsafe_expression(record['expression'], record.get('language', 'Hscript')):
             raise ValueError('Expresion Python o de sistema no permitida.')
-        language = getattr(hou.exprLanguage, record['language']) if 'language' in record else None
+        language = _enum('exprLanguage', record['language']) if 'language' in record else None
         key.setExpression(record['expression'], language=language)
     if record['kind'] == 'numeric':
         for field in ('Value', 'Slope', 'Accel'):
@@ -271,6 +271,21 @@ UNSAFE_CALL = r'\b(system|execute|run|pythonexpr[fsu]?)\s*\('
 CODE_PARM = r'(script|command|callback|snippet|kernel|code$|(pre|post)(render|frame|write))'
 
 
+# Names from the payload are only ever looked up through these allowlists.
+ENUMS = {'exprLanguage': ('Hscript', 'Python'),
+         'parmExtrapolate': ('Default', 'Hold', 'Cycle', 'Extend', 'Slope', 'CycleOffset', 'Oscillate'),
+         'rampBasis': ('Linear', 'Constant', 'CatmullRom', 'MonotoneCubic', 'Bezier', 'BSpline', 'Hermite')}
+FLAG_SETTERS = {'isBypassed': 'bypass', 'isDisplayFlagSet': 'setDisplayFlag',
+                'isRenderFlagSet': 'setRenderFlag', 'isTemplateFlagSet': 'setTemplateFlag'}
+
+
+def _enum(kind, name):
+    import hou
+    if not isinstance(name, str) or name not in ENUMS[kind]:
+        raise ValueError('Valor no valido para %s.' % kind)
+    return getattr(getattr(hou, kind), name)
+
+
 def _templates(entries):
     import hou
     for template in entries:
@@ -343,8 +358,20 @@ def _review(records, category):
         if record.get('templates'):
             spare = groups[number] = _review_templates(node_type, record['templates'], label, denied)
             flagged.append(label + ': parametros personalizados')
+        for getter, value in record['flags'].items():
+            if getter not in FLAG_SETTERS or type(value) is not bool:
+                raise ValueError('Valor no valido para flags.')
         for p in record['parms']:
             where = '%s.%s' % (label, p['name'])
+            for key in p.get('keyframes', ()):
+                if 'language' in key:
+                    _enum('exprLanguage', key['language'])
+            for name in p.get('extrapolation', ()):
+                _enum('parmExtrapolate', name)
+            for name in p['ramp']['basis'] if 'ramp' in p else ():
+                _enum('rampBasis', name)
+            if 'expression' in p:
+                _enum('exprLanguage', p.get('language'))
             unsafe = any('expression' in key and _unsafe_expression(key['expression'], key.get('language', 'Hscript'))
                          for key in p.get('keyframes', ()))
             if 'expression' in p and _unsafe_expression(p['expression'], p.get('language')):
@@ -436,14 +463,14 @@ def paste_rebuild(kwargs=None):
                     elif 'keyframes' in p:
                         parm.setKeyframes([_restore_key(key) for key in p['keyframes']])
                         for before, extrapolation in zip((True, False), p['extrapolation']):
-                            parm.setKeyframeExtrapolation(before, getattr(hou.parmExtrapolate, extrapolation))
+                            parm.setKeyframeExtrapolation(before, _enum('parmExtrapolate', extrapolation))
                     elif 'expression' in p:
                         if _unsafe_expression(p['expression'], p.get('language')):
                             raise ValueError('Expresion Python o de sistema no permitida.')
-                        parm.setExpression(p['expression'], language=getattr(hou.exprLanguage, p['language']))
+                        parm.setExpression(p['expression'], language=_enum('exprLanguage', p.get('language')))
                     elif 'ramp' in p:
                         ramp = p['ramp']
-                        parm.set(hou.Ramp([getattr(hou.rampBasis, b) for b in ramp['basis']], ramp['keys'], ramp['values']))
+                        parm.set(hou.Ramp([_enum('rampBasis', b) for b in ramp['basis']], ramp['keys'], ramp['values']))
                     else:
                         parm.set(p['value'], follow_parm_reference=False)
                     parm.lock(p['locked'])
@@ -454,11 +481,11 @@ def paste_rebuild(kwargs=None):
             for node, record in zip(created, records):
                 for input_index, source_index, output_index in record['inputs']:
                     node.setInput(input_index, created[source_index], output_index)
-            setters = {'isBypassed': 'bypass', 'isDisplayFlagSet': 'setDisplayFlag',
-                       'isRenderFlagSet': 'setRenderFlag', 'isTemplateFlagSet': 'setTemplateFlag'}
             for node, record in zip(created, records):
                 for getter, value in record['flags'].items():
-                    getattr(node, setters[getter])(value)
+                    if getter not in FLAG_SETTERS or type(value) is not bool:
+                        raise ValueError('Valor no valido para flags.')
+                    getattr(node, FLAG_SETTERS[getter])(value)
             if created:
                 center = sum((n.position() for n in created), hou.Vector2(0, 0)) / len(created)
                 offset = pane.visibleBounds().center() - center
