@@ -19,22 +19,38 @@ shelf += '</shelfDocument>\n'
 (root / 'parsec_nodes.shelf').write_text(shelf, encoding='utf-8')
 installer = '''# Run this file from Houdini's Python Shell. Works on Linux and Windows.
 import base64
+import datetime
 import os
+import re
 from pathlib import Path
 import hou
 
 SHELF = base64.b64decode(%r)
+
+def _label(data):
+    match = re.search(rb'<toolshelf name="parsec_nodes_shelf" label="([^"]*)"', data or b'')
+    return match.group(1).decode('utf-8', 'replace') if match else 'ninguna'
+
 
 def install():
     prefs = Path(hou.text.expandString('$HOUDINI_USER_PREF_DIR'))
     toolbar = prefs / 'toolbar'
     toolbar.mkdir(parents=True, exist_ok=True)
     target = toolbar / 'parsec_nodes.shelf'
-    if target.exists() and target.read_bytes() != SHELF:
-        backup = target.with_suffix('.shelf.backup')
-        if not backup.exists():
-            backup.write_bytes(target.read_bytes())
-    target.write_bytes(SHELF)
+    previous = target.read_bytes() if target.exists() else None
+    print('Parsec Nodes: version instalada: %%s. Version nueva: %%s.' %% (_label(previous), _label(SHELF)))
+    if previous != SHELF:
+        if previous is not None:
+            stamp = datetime.datetime.now().strftime('%%Y-%%m-%%dT%%H%%M%%S')
+            target.with_name('parsec_nodes.shelf.%%s.bak' %% stamp).write_bytes(previous)
+        # Atomic: a failed or interrupted write never leaves a half-written shelf.
+        temporary = target.with_suffix('.shelf.tmp')
+        try:
+            temporary.write_bytes(SHELF)
+            os.replace(temporary, target)
+        finally:
+            if temporary.exists():
+                temporary.unlink()
     if hou.isUIAvailable():
         hou.shelves.loadFile(str(target))
         shelf_note = ''
@@ -46,7 +62,7 @@ def install():
                     sets[0].setShelves(sets[0].shelves() + (shelf,))
             else:
                 shelf_note = 'Para mostrar la pestana: menu + de la shelf > Shelves > Parsec Nodes.'
-        except hou.PermissionError:
+        except Exception:
             shelf_note = 'El conjunto de shelves activo no permite cambios automaticos.\\nPara mostrar la pestana: menu + de la shelf > Shelves > Parsec Nodes.'
         hou.ui.displayMessage('Parsec Nodes v2.1 - Reconstruccion instalado.\\n\\n' + shelf_note + '\\n\\nUsa Copy Nodes en el equipo de origen y Paste Nodes en el destino.\\n\\nPara asignar un atajo: Ctrl+Alt+Shift y clic en el boton de la shelf.\\n\\n' + str(target))
     print('Parsec Nodes instalado: ' + str(target))
