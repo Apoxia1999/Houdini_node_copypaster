@@ -130,13 +130,21 @@ texto se transportan mediante sus tiempos, expresiones y lenguajes.
 ## Desarrollo y verificacion
 
 `parsec_nodes.py` contiene la herramienta. `build.py` genera la shelf, el instalador
-autonomo, la linea de instalacion por portapapeles y el ZIP distribuible.
+autonomo, la linea de instalacion por portapapeles, el ZIP distribuible y `SHA256SUMS`,
+y termina comprobando que cada artefacto contiene exactamente la fuente (sale con error si no).
+Estos scripts van incluidos en el ZIP.
 
 ```sh
 python build.py
 /path/to/houdini/bin/hython test_rebuild.py
 /path/to/houdini/bin/hython test_bridge.py
+HOUDINI_USER_PREF_DIR=/tmp/parsec_prefs/houdini__HVER__ /path/to/houdini/bin/hython test_install.py
 ```
+
+`test_rebuild.py` cubre tambien la revision de seguridad del pegado (nodos y expresiones
+con codigo, parametros personalizados con scripts), el aviso de licencia y las expresiones.
+`test_install.py` comprueba el instalador y solo se ejecuta contra una carpeta de
+preferencias temporal.
 
 Las pruebas usan escenas aisladas; no deben ejecutarse en la consola de una escena
 de trabajo. Requieren una instalacion de Houdini y acceso a su servidor de licencias.

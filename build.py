@@ -75,7 +75,8 @@ import zlib
 bootstrap = "import base64,zlib; exec(compile(zlib.decompress(base64.b64decode(%r)), '<Parsec Nodes installer>', 'exec'))" % base64.b64encode(zlib.compress(installer.encode(), 9)).decode()
 (root / 'INSTALAR_EN_WINDOWS.txt').write_text(bootstrap + '\n', encoding='utf-8')
 import hashlib
-PACKAGE = ['install_parsec_nodes.py', 'parsec_nodes.py', 'parsec_nodes.shelf', 'README.md', 'INSTALAR_EN_WINDOWS.txt', 'LICENSE']
+PACKAGE = ['install_parsec_nodes.py', 'parsec_nodes.py', 'parsec_nodes.shelf', 'README.md', 'INSTALAR_EN_WINDOWS.txt', 'LICENSE',
+           'build.py', 'test_rebuild.py', 'test_bridge.py', 'test_install.py']
 ZIP = 'Houdini_node_copypaster-v2.1.zip'
 with zipfile.ZipFile(root / ZIP, 'w', zipfile.ZIP_DEFLATED) as archive:
     for name in PACKAGE:
@@ -86,4 +87,44 @@ with zipfile.ZipFile(root / ZIP, 'w', zipfile.ZIP_DEFLATED) as archive:
         archive.writestr(info, (root / name).read_bytes())
 sums = ''.join('%s  %s\n' % (hashlib.sha256((root / name).read_bytes()).hexdigest(), name) for name in [ZIP] + PACKAGE)
 (root / 'SHA256SUMS').write_text(sums, encoding='utf-8')
-print('Built shelf and standalone installer')
+print('Built shelf, installer, one-line installer, ZIP and SHA256SUMS')
+
+# Verification: every derived artifact must carry exactly the source it was built from.
+import ast
+import re
+import sys
+import xml.etree.ElementTree as ET
+
+
+def verify():
+    source = (root / 'parsec_nodes.py').read_text(encoding='utf-8')
+    shelf_bytes = (root / 'parsec_nodes.shelf').read_bytes()
+    installer_text = (root / 'install_parsec_nodes.py').read_text(encoding='utf-8')
+    tools = list(ET.fromstring(shelf_bytes).iter('tool'))
+    assert len(tools) == 2, 'expected two shelf tools'
+    for tool in tools:
+        block = ast.parse(tool.find('script').text)
+        embedded = [n.args[0].value for n in ast.walk(block)
+                    if isinstance(n, ast.Call) and getattr(n.func, 'id', '') == 'compile']
+        assert embedded == [source], 'shelf script %s differs from parsec_nodes.py' % tool.get('name')
+    blob = [n.value.args[0].value for n in ast.walk(ast.parse(installer_text))
+            if isinstance(n, ast.Assign) and getattr(n.targets[0], 'id', '') == 'SHELF']
+    assert len(blob) == 1 and base64.b64decode(blob[0]) == shelf_bytes, 'installer blob differs from the shelf'
+    line = (root / 'INSTALAR_EN_WINDOWS.txt').read_text(encoding='utf-8')
+    packed = re.search(r"b64decode\('([^']+)'\)", line).group(1)
+    assert zlib.decompress(base64.b64decode(packed)).decode('utf-8') == installer_text, 'one-line installer differs'
+    with zipfile.ZipFile(root / ZIP) as archive:
+        assert sorted(archive.namelist()) == sorted('Houdini_node_copypaster/' + name for name in PACKAGE)
+        for name in PACKAGE:
+            assert archive.read('Houdini_node_copypaster/' + name) == (root / name).read_bytes(), 'ZIP copy of %s differs' % name
+    for entry in (root / 'SHA256SUMS').read_text(encoding='utf-8').splitlines():
+        digest, name = entry.split('  ', 1)
+        assert hashlib.sha256((root / name).read_bytes()).hexdigest() == digest, 'SHA256SUMS mismatch for ' + name
+
+
+try:
+    verify()
+except AssertionError as failure:
+    print('VERIFY FAILED: %s' % failure)
+    sys.exit(1)
+print('VERIFY OK: both shelf scripts == parsec_nodes.py, installer blob == shelf, one-line installer == installer, ZIP and SHA256SUMS match')
