@@ -6,7 +6,7 @@ import os
 import tempfile
 import zlib
 
-__version__ = "2.1"
+__version__ = "2.2"
 
 PREFIX = 'HOUDINI_PARSEC_NODES_V1:'
 MAX_RAW = 32 * 1024 * 1024

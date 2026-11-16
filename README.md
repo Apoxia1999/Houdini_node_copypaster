@@ -1,6 +1,6 @@
 # Houdini_node_copypaster
 
-**Version 2.1 · Shelf: Parsec Nodes v2.1** · historial en [CHANGELOG.md](CHANGELOG.md)
+**Version 2.2 · Shelf: Parsec Nodes v2.2** · historial en [CHANGELOG.md](CHANGELOG.md)
 
 La version publicada y sus huellas van juntas: `__version__` en `parsec_nodes.py`
 y en el instalador, y `SHA256SUMS` para esa misma version.
@@ -68,7 +68,7 @@ junto a la descarga y en el repositorio. Para comprobarla:
 
 ```sh
 sha256sum -c SHA256SUMS                                  # Linux
-Get-FileHash Houdini_node_copypaster-v2.1.zip -Algorithm SHA256   # Windows PowerShell
+Get-FileHash Houdini_node_copypaster-v2.2.zip -Algorithm SHA256   # Windows PowerShell
 ```
 
 El ZIP se genera con fechas fijas: las mismas fuentes producen siempre la misma huella.
@@ -77,7 +77,7 @@ comparalas con las del repositorio, no solo con las de la pagina de descarga.
 
 ## Prueba entre equipos
 
-1. Actualiza ambos equipos y comprueba que aparece Parsec Nodes v2.1.
+1. Actualiza ambos equipos y comprueba que aparece Parsec Nodes v2.2.
 2. Selecciona Box > Transform, o una cadena de nodos estandar de una sola red.
 3. Pulsa Copy Nodes. El mensaje inferior indicara modo reconstruccion.
 4. En Parsec, espera un segundo y entra en una red vacia del mismo tipo (SOP en SOP).
@@ -148,6 +148,12 @@ Las copias de seguridad `parsec_nodes.shelf.<fecha>.bak` no se tocan.
 
 A mano: quita la pestana de la shelf y, con Houdini cerrado, elimina
 `toolbar/parsec_nodes.shelf` de la carpeta de preferencias del usuario.
+
+## Actualizacion v2.2
+
+Version de seguridad: actualiza los dos equipos. El formato del portapapeles no cambia,
+pero la 2.2 rechaza contenido que la 2.1 aceptaba (expresiones Python, nodos de codigo).
+Detalle en [CHANGELOG.md](CHANGELOG.md).
 
 ## Actualizacion v2.1
 
