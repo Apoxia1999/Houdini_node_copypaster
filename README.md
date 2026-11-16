@@ -1,6 +1,9 @@
 # Houdini_node_copypaster
 
-**Version 2.1 · Shelf: Parsec Nodes v2.1**
+**Version 2.1 · Shelf: Parsec Nodes v2.1** · historial en [CHANGELOG.md](CHANGELOG.md)
+
+La version publicada y sus huellas van juntas: `__version__` en `parsec_nodes.py`
+y en el instalador, y `SHA256SUMS` para esa misma version.
 
 Licencia: MIT, ver [LICENSE](LICENSE). Incluye un aviso sobre las licencias de Houdini:
 la herramienta no convierte derechos de licencia de SideFX.

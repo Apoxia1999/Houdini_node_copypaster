@@ -3,13 +3,16 @@ import base64
 import zipfile
 root = Path(__file__).resolve().parent
 module = (root / 'parsec_nodes.py').read_text(encoding='utf-8')
+import re
+# Single source of truth for the version: the module constant.
+VERSION = re.search(r'^__version__ = "([^"]+)"$', module, re.MULTILINE).group(1)
 shelf = '''<?xml version="1.0" encoding="UTF-8"?>
 <shelfDocument>
-  <toolshelf name="parsec_nodes_shelf" label="Parsec Nodes v2.1">
+  <toolshelf name="parsec_nodes_shelf" label="Parsec Nodes v%s">
     <memberTool name="parsec_nodes_copy"/>
     <memberTool name="parsec_nodes_paste"/>
   </toolshelf>
-'''
+''' % VERSION
 for action, label, icon in [('copy', 'Copy Nodes', 'BUTTONS_copy'), ('paste', 'Paste Nodes', 'BUTTONS_paste')]:
     # Inline module keeps this independent of the host's Python minor version.
     script = 'namespace = {}\nexec(compile(%r, "parsec_nodes.py", "exec"), namespace)\nnamespace["run"](%r, kwargs)\n' % (module, action)
@@ -25,6 +28,7 @@ import re
 from pathlib import Path
 import hou
 
+__version__ = %r
 SHELF = base64.b64decode(%r)
 
 def _label(data):
@@ -64,20 +68,20 @@ def install():
                 shelf_note = 'Para mostrar la pestana: menu + de la shelf > Shelves > Parsec Nodes.'
         except Exception:
             shelf_note = 'El conjunto de shelves activo no permite cambios automaticos.\\nPara mostrar la pestana: menu + de la shelf > Shelves > Parsec Nodes.'
-        hou.ui.displayMessage('Parsec Nodes v2.1 - Reconstruccion instalado.\\n\\n' + shelf_note + '\\n\\nUsa Copy Nodes en el equipo de origen y Paste Nodes en el destino.\\n\\nPara asignar un atajo: Ctrl+Alt+Shift y clic en el boton de la shelf.\\n\\n' + str(target))
-    print('Parsec Nodes instalado: ' + str(target))
+        hou.ui.displayMessage('Parsec Nodes v%%s - Reconstruccion instalado.\\n\\n' %% __version__ + shelf_note + '\\n\\nUsa Copy Nodes en el equipo de origen y Paste Nodes en el destino.\\n\\nPara asignar un atajo: Ctrl+Alt+Shift y clic en el boton de la shelf.\\n\\n' + str(target))
+    print('Parsec Nodes v%%s instalado: %%s' %% (__version__, target))
     return str(target)
 
 install()
-''' % base64.b64encode(shelf.encode()).decode()
+''' % (VERSION, base64.b64encode(shelf.encode()).decode())
 (root / 'install_parsec_nodes.py').write_text(installer, encoding='utf-8')
 import zlib
 bootstrap = "import base64,zlib; exec(compile(zlib.decompress(base64.b64decode(%r)), '<Parsec Nodes installer>', 'exec'))" % base64.b64encode(zlib.compress(installer.encode(), 9)).decode()
 (root / 'INSTALAR_EN_WINDOWS.txt').write_text(bootstrap + '\n', encoding='utf-8')
 import hashlib
-PACKAGE = ['install_parsec_nodes.py', 'parsec_nodes.py', 'parsec_nodes.shelf', 'README.md', 'INSTALAR_EN_WINDOWS.txt', 'LICENSE',
+PACKAGE = ['install_parsec_nodes.py', 'parsec_nodes.py', 'parsec_nodes.shelf', 'README.md', 'INSTALAR_EN_WINDOWS.txt', 'LICENSE', 'CHANGELOG.md',
            'build.py', 'test_rebuild.py', 'test_bridge.py', 'test_install.py']
-ZIP = 'Houdini_node_copypaster-v2.1.zip'
+ZIP = 'Houdini_node_copypaster-v%s.zip' % VERSION
 with zipfile.ZipFile(root / ZIP, 'w', zipfile.ZIP_DEFLATED) as archive:
     for name in PACKAGE:
         # Fixed timestamps: the same sources always give the same ZIP and the same published hash.

@@ -6,6 +6,8 @@ import os
 import tempfile
 import zlib
 
+__version__ = "2.1"
+
 PREFIX = 'HOUDINI_PARSEC_NODES_V1:'
 MAX_RAW = 32 * 1024 * 1024
 MAX_TEXT = 48 * 1024 * 1024
@@ -259,7 +261,7 @@ def copy_rebuild(kwargs=None):
     text = encode(raw, parent.childTypeCategory().name(), hou.applicationVersionString(), hou.licenseCategory().name())
     text = REBUILD_PREFIX + text[len(PREFIX):]
     hou.ui.copyTextToClipboard(text)
-    hou.ui.setStatusMessage('Parsec Nodes: %d nodos copiados en modo reconstruccion (%d caracteres).' % (len(nodes), len(text)))
+    hou.ui.setStatusMessage('Parsec Nodes v%s: %d nodos copiados en modo reconstruccion (%d caracteres).' % (__version__, len(nodes), len(text)))
     return text
 
 
@@ -470,7 +472,7 @@ def paste_rebuild(kwargs=None):
             if created:
                 parent.deleteItems(tuple(created))
             raise
-    message = 'Parsec Nodes: reconstruidos %d nodos con parametros, claves y conexiones.' % len(created)
+    message = 'Parsec Nodes v%s: reconstruidos %d nodos con parametros, claves y conexiones.' % (__version__, len(created))
     if data.get('fps', hou.fps()) != hou.fps():
         message += ' FPS distintos: se conservan los tiempos en segundos; no se cambia el FPS del destino.'
     hou.ui.setStatusMessage(message)
@@ -483,4 +485,4 @@ def run(action, kwargs=None):
     try:
         return {'copy': copy_rebuild, 'paste': paste_rebuild}[action](kwargs)
     except Exception as exc:
-        hou.ui.displayMessage('Parsec Nodes - Reconstruccion\n\n' + str(exc), severity=hou.severityType.Error)
+        hou.ui.displayMessage('Parsec Nodes v%s - Reconstruccion\n\n' % __version__ + str(exc), severity=hou.severityType.Error)
