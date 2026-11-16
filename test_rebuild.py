@@ -145,6 +145,9 @@ try:
     b.setSelected(True)
     bridge.copy_rebuild()
     animation_text = ui.text
+    copied = json.loads(bridge.decode(bridge.PREFIX + animation_text[len(bridge.REBUILD_PREFIX):])[0])
+    exact = {p['name'] for p in copied['nodes'][0]['parms'] if 'channel_text' in p}
+    assert exact == {'tx', 'ty', 'tz', 'rx', 'ry', 'rz', 'sx'}, exact
     imported = bridge.paste_rebuild()[0]
     samples = [(-0.5 + i * 0.017) for i in range(180)]
     for channel in ('tx', 'ty', 'tz', 'rx', 'ry', 'rz', 'sx'):
@@ -266,6 +269,26 @@ try:
         except ValueError: pass
         else: raise AssertionError('Malformed payload accepted: %r' % (bad,))
         assert set(target.allItems()) == before
+    # Channel text may hold exactly one node block with one channel. Blocks the old
+    # line-based check missed must never animate a node that already exists.
+    victim = target.createNode('xform', 'victim')
+    good = next(p for p in copied['nodes'][0]['parms'] if p['name'] == 'tx')
+    tail = ('\n      lefttype = extend\n      righttype = extend\n      flags = 0\n'
+            '      segment { length = 0 expr = 7 }\n    }\n  }\n')
+    for name, extra in (('two spaces', victim.path() + '  {\n    channel  tx {' + tail),
+                        ('tabs', victim.path() + '\t{\n    channel\ttx {' + tail),
+                        ('brace on next line', victim.path() + '\n{\n    channel  tx\n{' + tail),
+                        ('second channel', None)):
+        text = good['channel_text'] + extra if extra else good['channel_text'].replace(
+            '    channel tx {', '    channel  ty {' + tail[:-6] + '    channel tx {')
+        before = set(target.allItems())
+        ui.text, ui.shown, ui.answer = craft([record('xform', [dict(good, channel_text=text)])]), [], 1
+        assert bridge.paste_rebuild() == () and set(target.allItems()) == before, name
+        assert victim.parm('tx').keyframes() == (), name
+    try: bridge._restore_channel(victim.parm('ty'), good['channel_text'])
+    except ValueError: pass
+    else: raise AssertionError('Channel text applied to a different parameter')
+    print('PASS: channel text with extra node or channel blocks is refused; existing nodes keep their animation')
     # TASK 10 - enum and flag names from the payload are allowlisted, never passed to getattr.
     numeric = {'name': 'tx', 'locked': False, 'keyframes': [crafted_key('bezier()')], 'extrapolation': ['Hold', 'Hold']}
     bogus = {

@@ -106,6 +106,22 @@ def _hscript_path(path):
     return '"' + str(path).replace('\\', '/').replace('"', '\\"').replace('$', '\\$') + '"'
 
 
+# The whole ACHN text must be exactly one node block holding one channel. Line-by-line
+# searches are not enough: the reader accepts "name  {" or a brace on the next line, which
+# would let a second block write animation onto a node that already exists.
+ACHN_SHAPE = (r'ACHN \d+\n(?:[a-z]+ = [^\n{}]*\n)*'
+              r'(/[^\s{}]+) \{\n'
+              r'[ \t]*channel ([^\s{}]+) \{\n'
+              r'(?:[ \t]*[a-z]+ = [^\n{}]*\n)*'
+              r'(?:[ \t]*segment \{(?: options = \{[^{}\n]*\})?[^{}]*\}\n)+'
+              r'[ \t]*\}\n[ \t]*\}\n?')
+
+
+def _channel_shape(text):
+    import re
+    return re.fullmatch(ACHN_SHAPE, text) if isinstance(text, str) else None
+
+
 def _describe_channel(parm):
     """ACHN stores exact channel segments, including automatic tangent defaults."""
     import hou
@@ -115,19 +131,19 @@ def _describe_channel(parm):
         if error.strip() or not os.path.exists(path):
             raise ValueError('No se pudo exportar la animacion de %s: %s' % (parm.path(), error))
         with open(path, encoding='utf-8') as handle:
-            return handle.read()
+            text = handle.read()
+    # Text the receiver would refuse (e.g. braces inside an expression) is not sent:
+    # the keys still travel through their public fields.
+    return text if _channel_shape(text) else None
 
 
 def _restore_channel(parm, text):
     import hou
-    import re
     # Accept exactly one channel and one node; rewrite the only destination.
     # This prevents an archive from writing animation onto pre-existing nodes.
-    headers = list(re.finditer(r'^(/[^\s{}]+) \{$', text, re.MULTILINE))
-    channels = re.findall(r'^\s*channel ([^\s{}]+) \{$', text, re.MULTILINE)
-    if not text.startswith('ACHN ') or len(headers) != 1 or channels != [parm.name()]:
+    match = _channel_shape(text)
+    if match is None or match.group(2) != parm.name():
         raise ValueError('Formato de canal no valido para %s.' % parm.name())
-    match = headers[0]
     text = text[:match.start(1)] + parm.node().path() + text[match.end(1):]
     with tempfile.TemporaryDirectory(prefix='houdini_parsec_channels_') as folder:
         path = os.path.join(folder, 'curve.chn')
@@ -206,7 +222,9 @@ def _describe_parm(parm):
         # chwrite only exports float and integer channels; menus and toggles travel as keys.
         if (kind in (hou.parmTemplateType.Float, hou.parmTemplateType.Int)
                 and all(isinstance(key, hou.Keyframe) for key in keys)):
-            record['channel_text'] = _describe_channel(parm)
+            channel = _describe_channel(parm)
+            if channel is not None:
+                record['channel_text'] = channel
         record['extrapolation'] = [parm.keyframeExtrapolation(before).name()
                                    for before in (True, False)]
         return record
@@ -377,7 +395,7 @@ def _review(records, category):
             if 'expression' in p and _unsafe_expression(p['expression'], p.get('language')):
                 unsafe = True
             channel = p.get('channel_text')
-            if channel is not None and (not isinstance(channel, str) or re.search(UNSAFE_CALL, channel) or
+            if channel is not None and (_channel_shape(channel) is None or re.search(UNSAFE_CALL, channel) or
                                         re.search(r'language\s*=\s*(?!\s|hscript\b)', channel, re.IGNORECASE)):
                 unsafe = True
             value = p.get('value')
