@@ -245,6 +245,29 @@ try:
     # Standard SOPs with numeric keyframes paste without any dialog.
     ui.text, ui.shown, ui.answer = animation_text, [], None
     assert len(bridge.paste_rebuild()) == 1 and ui.shown == []
+    # TASK 2 - licence warning matrix. The field is a hint written by the sender.
+    real_license = hou.licenseCategory
+    try:
+        for target_license in ('Commercial', 'Indie'):
+            hou.licenseCategory = lambda: getattr(hou.licenseCategoryType, target_license)
+            for declared, warns in (('Apprentice', True), ('ApprenticeHD', True), ('Education', True),
+                                    ('Unknown', True), ('', True), (None, True), ('commercial', True),
+                                    (['Commercial'], True), ('Commercial', False), ('Indie', False)):
+                payload = craft([record('box')], license_name=declared, drop_license=declared is None)
+                before = set(target.allItems())
+                ui.text, ui.shown, ui.answer = payload, [], 0
+                pasted = bridge.paste_rebuild()
+                assert (len(ui.shown) == 1) == warns, (target_license, declared, ui.shown)
+                if warns:
+                    assert pasted == () and set(target.allItems()) == before, declared
+                    assert 'verificar la procedencia' in ui.shown[0][0]
+                    ui.shown, ui.answer = [], 1
+                    assert len(bridge.paste_rebuild()) == 1 and len(ui.shown) == 1, declared
+                else:
+                    assert len(pasted) == 1, declared
+    finally:
+        hou.licenseCategory = real_license
+    print('PASS: licence warning shown for Apprentice, ApprenticeHD, Education, unknown, malformed and missing values')
     hou.setFrame(3)
     for node in target.children():
         try: node.cook(force=True)

@@ -44,6 +44,29 @@ def decode(text):
         raise ValueError('Los nodos llegaron incompletos o el formato no es valido. Vuelve a copiar y espera a que Parsec sincronice.') from exc
 
 
+LICENSES = ('Commercial', 'Indie', 'Education', 'ApprenticeHD', 'Apprentice')
+NONCOMMERCIAL = ('Education', 'ApprenticeHD', 'Apprentice')
+
+
+def _license_gate(envelope):
+    """The licence field is written by the sender: a hint, never an authorisation."""
+    import hou
+    source = envelope.get('license')
+    if hou.licenseCategory().name() == 'Apprentice':
+        return True
+    if isinstance(source, str) and source in LICENSES and source not in NONCOMMERCIAL:
+        return True
+    declared = source if isinstance(source, str) and source in LICENSES else 'desconocida'
+    choice = hou.ui.displayMessage(
+        'Licencia de origen declarada: %s. El portapapeles no permite verificar la procedencia.\n\n'
+        'El contenido creado en Houdini Apprentice o Education sigue sujeto al EULA de SideFX: '
+        'esta herramienta no convierte derechos de licencia.\n\n'
+        'Continua solo si conoces el origen de estos nodos.' % declared,
+        buttons=('Cancelar', 'Continuar'), default_choice=0, close_choice=0,
+        severity=hou.severityType.Warning)
+    return choice == 1
+
+
 def _network(kwargs):
     import hou
     pane = (kwargs or {}).get('pane')
@@ -91,17 +114,8 @@ def paste_nodes(kwargs=None):
     category = parent.childTypeCategory()
     if category is None or category.name() != envelope['category']:
         raise ValueError('Abre una red de tipo %s para pegar estos nodos.' % envelope['category'])
-    source_license = envelope.get('license', 'Unknown')
-    target_license = hou.licenseCategory().name()
-    if source_license == 'Apprentice' and target_license != 'Apprentice':
-        choice = hou.ui.displayMessage(
-            'Estos nodos proceden de Houdini Apprentice. Importarlos puede convertir '
-            'esta sesion a no comercial. El puente conserva las restricciones de licencia.\n\n'
-            'Prueba solo en una sesion vacia, sin escenas de trabajo abiertas.',
-            buttons=('Cancelar', 'Continuar prueba'), default_choice=0, close_choice=0,
-            severity=hou.severityType.Warning)
-        if choice != 1:
-            return ()
+    if not _license_gate(envelope):
+        return ()
     before = set(parent.allItems())
     warning = None
     with tempfile.TemporaryDirectory(prefix='houdini_parsec_') as folder:
@@ -460,6 +474,8 @@ def paste_rebuild(kwargs=None):
     category = parent.childTypeCategory()
     if category is None or category.name() != envelope['category']:
         raise ValueError('Abre una red de tipo %s.' % envelope['category'])
+    if not _license_gate(envelope):
+        return ()
     try:
         denied, flagged, groups = _review(records, category)
     except (AttributeError, KeyError, TypeError) as exc:
