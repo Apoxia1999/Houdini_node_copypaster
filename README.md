@@ -112,7 +112,7 @@ python build.py
 Las pruebas usan escenas aisladas; no deben ejecutarse en la consola de una escena
 de trabajo. Requieren una instalacion de Houdini y acceso a su servidor de licencias.
 `test_rebuild.py` verifica el modo actual, incluidas las curvas animadas.
-`test_bridge.py` conserva las pruebas del transporte nativo inicial, que no se usa
-en los botones principales de reconstruccion.
+`test_bridge.py` conserva, solo como prueba, el transporte nativo inicial (.cpio):
+ese codigo ya no forma parte de `parsec_nodes.py` ni de la shelf instalada.
 
 El transporte admite texto sincronizado por Parsec; la herramienta no depende de su SDK.

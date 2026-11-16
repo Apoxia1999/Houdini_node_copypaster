@@ -82,82 +82,6 @@ def _network(kwargs):
     raise ValueError('Pon el raton sobre la red de destino y ejecuta la herramienta con su atajo. Hay varias redes abiertas.')
 
 
-def copy_nodes(kwargs=None):
-    import hou
-    items = tuple(hou.selectedItems())
-    if not items:
-        raise ValueError('Selecciona los nodos que quieres copiar.')
-    parent = items[0].parent()
-    if any(item.parent() != parent for item in items):
-        raise ValueError('Selecciona elementos de una sola red.')
-    # A selected network box does not implicitly serialize its contents.
-    expanded = set(items)
-    for item in items:
-        if isinstance(item, hou.NetworkBox):
-            expanded.update(item.items(recurse=True))
-    items = tuple(expanded)
-    with tempfile.TemporaryDirectory(prefix='houdini_parsec_') as folder:
-        path = os.path.join(folder, 'nodes.cpio')
-        parent.saveItemsToFile(items, path)
-        with open(path, 'rb') as handle:
-            text = encode(handle.read(), parent.childTypeCategory().name(), hou.applicationVersionString(), hou.licenseCategory().name())
-    hou.ui.copyTextToClipboard(text)
-    hou.ui.setStatusMessage('Parsec Nodes: copiados %d elementos (%d caracteres). Abre Parsec y pulsa Paste Nodes.' % (len(items), len(text)))
-    return text
-
-
-def paste_nodes(kwargs=None):
-    import hou
-    raw, envelope = decode(hou.ui.getTextFromClipboard())
-    pane = _network(kwargs)
-    parent = pane.pwd()
-    category = parent.childTypeCategory()
-    if category is None or category.name() != envelope['category']:
-        raise ValueError('Abre una red de tipo %s para pegar estos nodos.' % envelope['category'])
-    if not _license_gate(envelope):
-        return ()
-    before = set(parent.allItems())
-    warning = None
-    with tempfile.TemporaryDirectory(prefix='houdini_parsec_') as folder:
-        path = os.path.join(folder, 'nodes.cpio')
-        with open(path, 'wb') as handle:
-            handle.write(raw)
-        with hou.undos.group('Paste Parsec Nodes'):
-            try:
-                parent.loadItemsFromFile(path)
-            except hou.LoadWarning as exc:
-                warning = str(exc)
-            except Exception:
-                # Remove partial imports without touching pre-existing items.
-                added = set(parent.allItems()) - before
-                if added:
-                    parent.deleteItems(tuple(added))
-                raise
-            added = set(parent.allItems()) - before
-            # Move top-level items together. Box contents move with their box.
-            roots = [item for item in added if item.parentNetworkBox() not in added]
-            if roots:
-                center = sum((item.position() for item in roots), hou.Vector2(0, 0)) / len(roots)
-                offset = pane.visibleBounds().center() - center
-                for item in roots:
-                    item.move(offset)
-            for item in parent.selectedItems():
-                item.setSelected(False)
-            for item in added:
-                item.setSelected(True)
-    hou.ui.setStatusMessage('Parsec Nodes: pegados %d elementos desde Houdini %s. Ctrl+Z deshace.' % (len(added), envelope.get('version', '?')))
-    if warning:
-        hou.ui.displayMessage('Los nodos se han cargado con avisos:\n' + warning, severity=hou.severityType.Warning)
-    return tuple(added)
-
-
-def run(action, kwargs=None):
-    import hou
-    try:
-        return {'copy': copy_nodes, 'paste': paste_nodes}[action](kwargs)
-    except Exception as exc:
-        hou.ui.displayMessage('Parsec Nodes\n\n' + str(exc), severity=hou.severityType.Error)
-
 # Reconstruction mode: only node descriptions, never native Houdini archives.
 REBUILD_PREFIX = 'HOUDINI_PARSEC_REBUILD_V1:'
 
@@ -553,7 +477,7 @@ def paste_rebuild(kwargs=None):
     return tuple(created)
 
 
-# Main buttons now reconstruct node descriptions. Native functions remain for regression tests.
+# Shelf entry point. Only the reconstruction mode ships.
 def run(action, kwargs=None):
     import hou
     try:
