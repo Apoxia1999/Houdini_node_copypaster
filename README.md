@@ -58,7 +58,10 @@ Si falla la transferencia remota, comprueba que texto normal llegue a Bloc de no
 ## Alcance actual
 
 - Cadenas de nodos estandar incluidos con Houdini, sin subredes editadas dentro.
-- Parametros estaticos, expresiones, VEX, rampas, parametros personalizados y conexiones internas.
+- Parametros estaticos, expresiones HScript (tambien en menus, casillas y enteros), VEX, rampas,
+  parametros personalizados y conexiones internas.
+- No se transportan expresiones Python ni llamadas HScript que ejecutan procesos o Python
+  (`system`, `execute`, `run`, `pythonexpr*`): un pegado que las contenga se rechaza entero.
 - Animacion: claves numericas y de texto, interpolacion, tangentes y aceleraciones,
   pendientes automaticas, valores de entrada/salida separados y extrapolacion.
 - Los tiempos se conservan en segundos. Si cambia el FPS del destino, cambian los numeros

@@ -277,7 +277,9 @@ def _describe_parm(parm):
     keys = parm.keyframes()
     if keys:
         record['keyframes'] = [_describe_key(key) for key in keys]
-        if all(isinstance(key, hou.Keyframe) for key in keys):
+        # chwrite only exports float and integer channels; menus and toggles travel as keys.
+        if (kind in (hou.parmTemplateType.Float, hou.parmTemplateType.Int)
+                and all(isinstance(key, hou.Keyframe) for key in keys)):
             record['channel_text'] = _describe_channel(parm)
         record['extrapolation'] = [parm.keyframeExtrapolation(before).name()
                                    for before in (True, False)]

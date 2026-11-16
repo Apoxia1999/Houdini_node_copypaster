@@ -181,6 +181,30 @@ try:
     assert [bridge._describe_key(k) for k in stringclone.parm('text').keyframes()] == [bridge._describe_key(k) for k in textnode.parm('text').keyframes()]
     for t in (0, 0.125, 0.5):
         assert stringclone.parm('text').evalAtTime(t) == textnode.parm('text').evalAtTime(t)
+    # TASK 3 - static expressions arrive as expressions on every numeric parameter kind.
+    for item in hou.selectedItems(): item.setSelected(False)
+    expressive = src.createNode('xform', 'expressive')
+    expressive.parm('tx').setExpression('$F*0.1', language=hou.exprLanguage.Hscript)
+    expressive.parm('ty').setExpression('ch("tx") * 2', language=hou.exprLanguage.Hscript)
+    expressive.parm('xOrd').setExpression('$F % 6', language=hou.exprLanguage.Hscript)        # menu
+    expressive.parm('invertxform').setExpression('$F > 10', language=hou.exprLanguage.Hscript)  # toggle
+    copies = src.createNode('copyxform', 'expressive_copy')
+    copies.parm('ncy').setExpression('$F + 1', language=hou.exprLanguage.Hscript)                # integer
+    expressive.setSelected(True); copies.setSelected(True)
+    bridge.copy_rebuild()
+    fresh = hou.node('/obj').createNode('geo', 'bridge_test_fresh')
+    fresh.deleteItems(fresh.children())
+    bridge._network = lambda kwargs: Pane(fresh)
+    pasted = {n.type().name(): n for n in bridge.paste_rebuild()}
+    bridge._network = lambda kwargs: Pane(target)
+    for node, names in ((expressive, ('tx', 'ty', 'xOrd', 'invertxform')), (copies, ('ncy',))):
+        twin = pasted[node.type().name()]
+        for name in names:
+            assert twin.parm(name).expression() == node.parm(name).expression(), name
+            for frame in (1, 7, 24, 48):
+                assert twin.parm(name).evalAtFrame(frame) == node.parm(name).evalAtFrame(frame), (name, frame)
+    assert pasted['xform'].parm('tx').evalAtFrame(10) != pasted['xform'].parm('tx').evalAtFrame(20)
+    print('PASS: static expressions round-trip on float, integer, menu and toggle parameters')
     # TASK 1 - payload review. Nothing below may create a node, cook, or leave a marker file.
     if os.path.exists(MARKER): os.remove(MARKER)
     shell = "touch '%s'" % MARKER
