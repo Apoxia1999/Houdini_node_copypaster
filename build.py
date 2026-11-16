@@ -74,8 +74,16 @@ install()
 import zlib
 bootstrap = "import base64,zlib; exec(compile(zlib.decompress(base64.b64decode(%r)), '<Parsec Nodes installer>', 'exec'))" % base64.b64encode(zlib.compress(installer.encode(), 9)).decode()
 (root / 'INSTALAR_EN_WINDOWS.txt').write_text(bootstrap + '\n', encoding='utf-8')
-with zipfile.ZipFile(root / 'Houdini_node_copypaster-v2.1.zip', 'w', zipfile.ZIP_DEFLATED) as archive:
-    for name in ['install_parsec_nodes.py', 'parsec_nodes.py', 'parsec_nodes.shelf', 'README.md', 'INSTALAR_EN_WINDOWS.txt']:
-        if (root / name).exists():
-            archive.write(root / name, 'Houdini_node_copypaster/' + name)
+import hashlib
+PACKAGE = ['install_parsec_nodes.py', 'parsec_nodes.py', 'parsec_nodes.shelf', 'README.md', 'INSTALAR_EN_WINDOWS.txt']
+ZIP = 'Houdini_node_copypaster-v2.1.zip'
+with zipfile.ZipFile(root / ZIP, 'w', zipfile.ZIP_DEFLATED) as archive:
+    for name in PACKAGE:
+        # Fixed timestamps: the same sources always give the same ZIP and the same published hash.
+        info = zipfile.ZipInfo('Houdini_node_copypaster/' + name, date_time=(1980, 1, 1, 0, 0, 0))
+        info.compress_type = zipfile.ZIP_DEFLATED
+        info.external_attr = 0o644 << 16
+        archive.writestr(info, (root / name).read_bytes())
+sums = ''.join('%s  %s\n' % (hashlib.sha256((root / name).read_bytes()).hexdigest(), name) for name in [ZIP] + PACKAGE)
+(root / 'SHA256SUMS').write_text(sums, encoding='utf-8')
 print('Built shelf and standalone installer')

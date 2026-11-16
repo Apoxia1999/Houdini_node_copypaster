@@ -25,23 +25,49 @@ ejecuta esta linea sustituyendo la ruta por la ubicacion del instalador:
 exec(open('/ruta/Houdini_node_copypaster/install_parsec_nodes.py', encoding='utf-8').read())
 ```
 
-## Instalar o actualizar en Windows mediante Parsec
+## Instalar o actualizar en Windows
 
-1. En Linux, abre `INSTALAR_EN_WINDOWS.txt` en un editor de texto.
-2. Copia la unica linea completa.
-3. En Windows remoto, abre Windows > Python Shell de Houdini.
-4. Pega la linea y pulsa Enter.
-
-El instalador escribe `toolbar/parsec_nodes.shelf` en `$HOUDINI_USER_PREF_DIR`.
-No necesita permisos de administrador ni reiniciar Houdini. Si el conjunto de shelves
-activo esta protegido, la instalacion termina y explica como mostrar la pestana manualmente:
-menu + a la derecha de las shelves > Shelves > Parsec Nodes v2.1.
-
-Alternativa: extrae el ZIP y ejecuta desde Python Shell, usando la ruta real:
+Via principal: copia el ZIP al equipo Windows, extraelo y comprueba su huella (ver
+Integridad). Despues, en Windows > Python Shell de Houdini, usando la ruta real:
 
 ```python
 exec(open(r'C:\ruta\install_parsec_nodes.py', encoding='utf-8').read())
 ```
+
+El instalador escribe `toolbar/parsec_nodes.shelf` en `$HOUDINI_USER_PREF_DIR`.
+No necesita permisos de administrador ni reiniciar Houdini. Si el conjunto de shelves
+activo esta protegido, la instalacion termina y explica como mostrar la pestana manualmente:
+menu + a la derecha de las shelves > Shelves > Parsec Nodes.
+
+### Alternativa: una linea por el portapapeles de Parsec
+
+Solo si no puedes copiar archivos al equipo remoto. `INSTALAR_EN_WINDOWS.txt` contiene el
+mismo instalador comprimido en una linea; no es legible a simple vista, asi que
+decodificalo y revisalo antes de pegarlo. Desde la carpeta extraida:
+
+```sh
+python -c "import base64,zlib,re;print(zlib.decompress(base64.b64decode(re.search(r\"b64decode\('([^']+)'\",open('INSTALAR_EN_WINDOWS.txt').read()).group(1))).decode())"
+```
+
+La salida debe coincidir con `install_parsec_nodes.py` (mas una linea en blanco final). Despues:
+
+1. En Linux, abre `INSTALAR_EN_WINDOWS.txt` en un editor de texto y copia la unica linea completa.
+2. En Windows remoto, abre Windows > Python Shell de Houdini.
+3. Pega la linea y pulsa Enter.
+
+## Integridad
+
+`SHA256SUMS` lista la huella SHA-256 del ZIP y de cada archivo que contiene. Se publica
+junto a la descarga y en el repositorio. Para comprobarla:
+
+```sh
+sha256sum -c SHA256SUMS                                  # Linux
+Get-FileHash Houdini_node_copypaster-v2.1.zip -Algorithm SHA256   # Windows PowerShell
+```
+
+El ZIP se genera con fechas fijas: las mismas fuentes producen siempre la misma huella.
+Las huellas detectan una descarga alterada o incompleta; no estan firmadas, asi que
+comparalas con las del repositorio, no solo con las de la pagina de descarga.
 
 ## Prueba entre equipos
 
