@@ -242,6 +242,8 @@ def _restore_key(record):
         if record['isInSlopeAuto']:
             key.setInSlopeAuto(True)
     if 'expression' in record:
+        if _unsafe_expression(record['expression'], record.get('language', 'Hscript')):
+            raise ValueError('Expresion Python o de sistema no permitida.')
         language = getattr(hou.exprLanguage, record['language']) if 'language' in record else None
         key.setExpression(record['expression'], language=language)
     if record['kind'] == 'numeric':
@@ -321,6 +323,128 @@ def copy_rebuild(kwargs=None):
     return text
 
 
+# Payload review: pasted text is untrusted. Code-bearing content is refused or confirmed.
+DENIED_TYPES = ('python', 'pythonsnippet', 'pythonscript', 'shell', 'genericgenerator', 'sendcommand')
+UNSAFE_CALL = r'\b(system|execute|run|pythonexpr[fsu]?)\s*\('
+CODE_PARM = r'(script|command|callback|snippet|kernel|code$|(pre|post)(render|frame|write))'
+
+
+def _templates(entries):
+    import hou
+    for template in entries:
+        yield template
+        if isinstance(template, hou.FolderParmTemplate):
+            for child in _templates(template.parmTemplates()):
+                yield child
+
+
+def _unsafe_expression(text, language='Hscript'):
+    """Only HScript expressions that cannot start a process or run Python are accepted."""
+    import re
+    return language != 'Hscript' or not isinstance(text, str) or re.search(UNSAFE_CALL, text) is not None
+
+
+def _unsafe_string(text):
+    import re
+    return isinstance(text, str) and '`' in text and re.search(UNSAFE_CALL, text) is not None
+
+
+def _review_templates(node_type, text, label, denied):
+    """Spare parameters only: built-in templates always come from the destination type."""
+    import hou
+    if not isinstance(text, str):
+        raise TypeError('templates')
+    original = node_type.parmTemplateGroup()
+    group = hou.ParmTemplateGroup()
+    group.setToDialogScript(text)
+    for template in tuple(_templates(group.entries())):
+        known = original.find(template.name())
+        folder = isinstance(template, hou.FolderParmTemplate)
+        if known is not None and not folder:
+            group.replace(template.name(), known)
+            continue
+        allowed = known.tags() if known is not None else {}
+        unsafe = template.scriptCallback() != (known.scriptCallback() if known is not None else '')
+        unsafe = unsafe or any(key.startswith('script_') and allowed.get(key) != value
+                               for key, value in template.tags().items())
+        if hasattr(template, 'itemGeneratorScript') and template.itemGeneratorScript():
+            unsafe = True
+        if hasattr(template, 'defaultExpression'):
+            expressions, languages = template.defaultExpression(), template.defaultExpressionLanguage()
+            if isinstance(expressions, str):
+                expressions, languages = (expressions,), (languages,)
+            for expression, language in zip(expressions, languages):
+                if expression and _unsafe_expression(expression, language.name()):
+                    unsafe = True
+        if isinstance(template, hou.StringParmTemplate) and any(_unsafe_string(v) for v in template.defaultValue()):
+            unsafe = True
+        if unsafe:
+            denied.append('%s: parametro personalizado %s con script' % (label, template.name()))
+    return group
+
+
+def _review(records, category):
+    """Validate every record before the scene is touched. Returns (denied, flagged, groups)."""
+    import re
+    denied, flagged, groups = [], [], {}
+    for number, record in enumerate(records):
+        node_type = category.nodeTypes().get(record['type'])
+        if node_type is None or not _standard_type(node_type):
+            raise ValueError('El tipo %s no existe o depende de un HDA externo en este equipo.' % record['type'])
+        label = '%s (%s)' % (record['name'], record['type'])
+        original = node_type.parmTemplateGroup()
+        if (node_type.nameComponents()[2] in DENIED_TYPES or
+                any(t.tags().get('editorlang', '').lower() == 'python' for t in _templates(original.entries()))):
+            denied.append(label + ': tipo de nodo que ejecuta codigo')
+            continue
+        spare = None
+        if record.get('templates'):
+            spare = groups[number] = _review_templates(node_type, record['templates'], label, denied)
+            flagged.append(label + ': parametros personalizados')
+        for p in record['parms']:
+            where = '%s.%s' % (label, p['name'])
+            unsafe = any('expression' in key and _unsafe_expression(key['expression'], key.get('language', 'Hscript'))
+                         for key in p.get('keyframes', ()))
+            if 'expression' in p and _unsafe_expression(p['expression'], p.get('language')):
+                unsafe = True
+            channel = p.get('channel_text')
+            if channel is not None and (not isinstance(channel, str) or re.search(UNSAFE_CALL, channel) or
+                                        re.search(r'language\s*=\s*(?!\s|hscript\b)', channel, re.IGNORECASE)):
+                unsafe = True
+            value = p.get('value')
+            if _unsafe_string(value):
+                unsafe = True
+            if unsafe:
+                denied.append(where + ': expresion Python o de sistema')
+            elif isinstance(value, str) and value:
+                template = original.find(p['name'])
+                if template is None and spare is not None:
+                    template = spare.find(p['name'])
+                tags = template.tags() if template is not None else {}
+                if 'editor' in tags or 'editorlang' in tags or re.search(CODE_PARM, p['name']):
+                    flagged.append(where + ': codigo')
+    return denied, flagged, groups
+
+
+def _confirm_review(denied, flagged):
+    """One dialog before anything is created. Cancel is the default."""
+    import hou
+    if denied:
+        hou.ui.displayMessage(
+            'Pegado bloqueado: %d elementos ejecutan codigo y no se admiten.\n\n%s\n\nNo se ha creado nada.'
+            % (len(denied), '\n'.join(denied[:20])),
+            buttons=('Cancelar',), severity=hou.severityType.Warning)
+        return False
+    if not flagged:
+        return True
+    choice = hou.ui.displayMessage(
+        'El portapapeles trae %d elementos con codigo o parametros personalizados.\n'
+        'Pega solo si conoces su origen.\n\n%s' % (len(flagged), '\n'.join(flagged[:20])),
+        buttons=('Cancelar', 'Pegar'), default_choice=0, close_choice=0,
+        severity=hou.severityType.Warning)
+    return choice == 1
+
+
 def paste_rebuild(kwargs=None):
     import hou
     text = hou.ui.getTextFromClipboard().strip()
@@ -336,22 +460,22 @@ def paste_rebuild(kwargs=None):
     category = parent.childTypeCategory()
     if category is None or category.name() != envelope['category']:
         raise ValueError('Abre una red de tipo %s.' % envelope['category'])
-    for record in records:
-        node_type = category.nodeTypes().get(record['type'])
-        if node_type is None or not _standard_type(node_type):
-            raise ValueError('El tipo %s no existe o depende de un HDA externo en este equipo.' % record['type'])
+    try:
+        denied, flagged, groups = _review(records, category)
+    except (AttributeError, KeyError, TypeError) as exc:
+        raise ValueError('Formato de reconstruccion no valido.') from exc
+    if not _confirm_review(denied, flagged):
+        return ()
     created = []
     with hou.undos.group('Rebuild Parsec Nodes'):
         try:
-            for record in records:
+            for number, record in enumerate(records):
                 node = parent.createNode(record['type'], node_name=record['name'],
                                          run_init_scripts=False, load_contents=True,
                                          exact_type_name=True)
                 created.append(node)
-                if record.get('templates'):
-                    group = hou.ParmTemplateGroup()
-                    group.setToDialogScript(record['templates'])
-                    node.setParmTemplateGroup(group)
+                if number in groups:
+                    node.setParmTemplateGroup(groups[number])
                 # Multiparm counts are applied before the generated parameters.
                 for p in record['parms']:
                     parm = node.parm(p['name'])
@@ -370,6 +494,8 @@ def paste_rebuild(kwargs=None):
                         for before, extrapolation in zip((True, False), p['extrapolation']):
                             parm.setKeyframeExtrapolation(before, getattr(hou.parmExtrapolate, extrapolation))
                     elif 'expression' in p:
+                        if _unsafe_expression(p['expression'], p.get('language')):
+                            raise ValueError('Expresion Python o de sistema no permitida.')
                         parm.setExpression(p['expression'], language=getattr(hou.exprLanguage, p['language']))
                     elif 'ramp' in p:
                         ramp = p['ramp']
