@@ -109,6 +109,31 @@ Si falla la transferencia remota, comprueba que texto normal llegue a Bloc de no
   los nodos nuevos y conserva los nodos preexistentes.
 - Limite interno de transporte: 32 MiB de descripcion sin comprimir. Limite real de Parsec no medido.
 
+## Seguridad
+
+El texto del portapapeles se trata como no fiable. Antes de crear ningun nodo,
+Paste Nodes revisa la descripcion completa.
+
+- Se rechaza el pegado entero si contiene nodos que ejecutan codigo (Python SOP y
+  cualquier tipo con un parametro de editor Python, nodos de comandos de shell),
+  expresiones Python, llamadas HScript `system`, `execute`, `run` o `pythonexpr*`
+  (en claves, canales, textos con comillas invertidas o valores por defecto), o
+  parametros personalizados con callbacks, menus con script o etiquetas `script_*`.
+- Los parametros propios de cada nodo se toman siempre de la definicion del equipo de
+  destino; del portapapeles solo se aceptan los parametros personalizados.
+- Si hay VEX, OpenCL, parametros de script o parametros personalizados, aparece un unico
+  aviso con la lista antes de crear nada. El boton por defecto es Cancelar.
+- Aviso de licencia: la licencia de origen la declara quien copia y no se puede verificar.
+  Si es Apprentice, ApprenticeHD, Education, desconocida o falta, se avisa siempre. No hay
+  opcion para desactivar el aviso.
+
+Limites conocidos:
+
+- No hay firma: la herramienta no puede saber quien genero el texto del portapapeles.
+- El VEX no se analiza, solo se avisa. Revisa el codigo que no hayas escrito tu.
+- El contenido viaja sin cifrar y puede quedar en historiales del portapapeles.
+- El uso del portapapeles compartido de Parsec depende de la politica de cada empresa.
+
 ## Atajos
 
 Ctrl+Alt+Shift y clic en Copy Nodes abre el editor de atajos. Puedes asignar Ctrl+Shift+C.
@@ -117,7 +142,11 @@ Los atajos no se asignan automaticamente.
 
 ## Desinstalar
 
-Quita la pestana de la shelf y, con Houdini cerrado, elimina
+En la misma Python Shell donde ejecutaste el instalador, escribe `uninstall()`: pide
+confirmacion y elimina `toolbar/parsec_nodes.shelf`. Despues quita la pestana de la shelf.
+Las copias de seguridad `parsec_nodes.shelf.<fecha>.bak` no se tocan.
+
+A mano: quita la pestana de la shelf y, con Houdini cerrado, elimina
 `toolbar/parsec_nodes.shelf` de la carpeta de preferencias del usuario.
 
 ## Actualizacion v2.1

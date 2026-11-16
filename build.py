@@ -21,6 +21,8 @@ for action, label, icon in [('copy', 'Copy Nodes', 'BUTTONS_copy'), ('paste', 'P
 shelf += '</shelfDocument>\n'
 (root / 'parsec_nodes.shelf').write_text(shelf, encoding='utf-8')
 installer = '''# Run this file from Houdini's Python Shell. Works on Linux and Windows.
+# It defines install() and uninstall() and writes one file: toolbar/parsec_nodes.shelf
+# under $HOUDINI_USER_PREF_DIR. See README.md (Spanish) or README.en.md (English).
 import base64
 import datetime
 import os
@@ -72,6 +74,26 @@ def install():
     print('Parsec Nodes v%%s instalado: %%s' %% (__version__, target))
     return str(target)
 
+
+def uninstall():
+    target = Path(hou.text.expandString('$HOUDINI_USER_PREF_DIR')) / 'toolbar' / 'parsec_nodes.shelf'
+    if not target.exists():
+        print('Parsec Nodes no esta instalado: ' + str(target))
+        return False
+    if hou.isUIAvailable() and hou.ui.displayMessage(
+            'Eliminar Parsec Nodes?\\n\\n' + str(target), buttons=('Cancelar', 'Eliminar'),
+            default_choice=0, close_choice=0, severity=hou.severityType.Warning) != 1:
+        return False
+    target.unlink()
+    note = 'Parsec Nodes desinstalado. Quita la pestana Parsec Nodes de la shelf; las copias .bak no se tocan.'
+    print(note)
+    if hou.isUIAvailable():
+        hou.ui.displayMessage(note)
+    return True
+
+
+# Intentional: the documented install line is exec(open(...).read()), so running this
+# file installs. uninstall() is then available in the same Python Shell.
 install()
 ''' % (VERSION, base64.b64encode(shelf.encode()).decode())
 (root / 'install_parsec_nodes.py').write_text(installer, encoding='utf-8')
@@ -79,7 +101,7 @@ import zlib
 bootstrap = "import base64,zlib; exec(compile(zlib.decompress(base64.b64decode(%r)), '<Parsec Nodes installer>', 'exec'))" % base64.b64encode(zlib.compress(installer.encode(), 9)).decode()
 (root / 'INSTALAR_EN_WINDOWS.txt').write_text(bootstrap + '\n', encoding='utf-8')
 import hashlib
-PACKAGE = ['install_parsec_nodes.py', 'parsec_nodes.py', 'parsec_nodes.shelf', 'README.md', 'INSTALAR_EN_WINDOWS.txt', 'LICENSE', 'CHANGELOG.md',
+PACKAGE = ['install_parsec_nodes.py', 'parsec_nodes.py', 'parsec_nodes.shelf', 'README.md', 'README.en.md', 'INSTALAR_EN_WINDOWS.txt', 'LICENSE', 'CHANGELOG.md',
            'build.py', 'test_rebuild.py', 'test_bridge.py', 'test_install.py']
 ZIP = 'Houdini_node_copypaster-v%s.zip' % VERSION
 with zipfile.ZipFile(root / ZIP, 'w', zipfile.ZIP_DEFLATED) as archive:

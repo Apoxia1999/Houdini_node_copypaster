@@ -1,4 +1,6 @@
 # Run this file from Houdini's Python Shell. Works on Linux and Windows.
+# It defines install() and uninstall() and writes one file: toolbar/parsec_nodes.shelf
+# under $HOUDINI_USER_PREF_DIR. See README.md (Spanish) or README.en.md (English).
 import base64
 import datetime
 import os
@@ -50,4 +52,24 @@ def install():
     print('Parsec Nodes v%s instalado: %s' % (__version__, target))
     return str(target)
 
+
+def uninstall():
+    target = Path(hou.text.expandString('$HOUDINI_USER_PREF_DIR')) / 'toolbar' / 'parsec_nodes.shelf'
+    if not target.exists():
+        print('Parsec Nodes no esta instalado: ' + str(target))
+        return False
+    if hou.isUIAvailable() and hou.ui.displayMessage(
+            'Eliminar Parsec Nodes?\n\n' + str(target), buttons=('Cancelar', 'Eliminar'),
+            default_choice=0, close_choice=0, severity=hou.severityType.Warning) != 1:
+        return False
+    target.unlink()
+    note = 'Parsec Nodes desinstalado. Quita la pestana Parsec Nodes de la shelf; las copias .bak no se tocan.'
+    print(note)
+    if hou.isUIAvailable():
+        hou.ui.displayMessage(note)
+    return True
+
+
+# Intentional: the documented install line is exec(open(...).read()), so running this
+# file installs. uninstall() is then available in the same Python Shell.
 install()

@@ -47,4 +47,10 @@ finally:
     os.replace = real_replace
 assert target.read_bytes() == old
 assert not [n for n in listing() if n.endswith('.tmp')], listing()
+# uninstall() removes only the shelf file.
+exec(compile(source, 'install_parsec_nodes.py', 'exec'), space)
+others = [n for n in listing() if n != 'parsec_nodes.shelf']
+assert space['uninstall']() is True and not target.exists()
+assert listing() == others, listing()
+assert space['uninstall']() is False
 print('PASS: installer is atomic, backs up once per change with a timestamp, and reports the version transition')
